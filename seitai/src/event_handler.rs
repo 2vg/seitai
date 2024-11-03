@@ -196,7 +196,7 @@ where
             if self.sounds.len() > 0 {
                 let os_string: OsString = message.content.clone().into();
                 if let Some(sound) = self.sounds.get(&os_string) {
-                    call.play(Track::from(sound.value().clone()).volume(0.05));
+                    call.play(Track::from(sound.value().clone()).volume(0.01));
                     return;
                 }
             }
