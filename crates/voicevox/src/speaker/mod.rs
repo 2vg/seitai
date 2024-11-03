@@ -5,7 +5,7 @@ use hyper::StatusCode;
 use url::Url;
 use uuid::Uuid;
 
-use self::response::{GetSpeakersResult, GetSpeakerInfoResult};
+use self::response::{GetSpeakerInfoResult, GetSpeakersResult};
 use crate::request::Request;
 
 #[derive(Debug, Clone)]
@@ -24,9 +24,9 @@ impl Speaker {
         let (status, bytes) = self.get("speakers", &[]).await?;
         match status {
             StatusCode::OK => Ok(GetSpeakersResult::Ok(serde_json::from_slice(&bytes)?)),
-            StatusCode::UNPROCESSABLE_ENTITY => Ok(GetSpeakersResult::UnprocessableEntity(
-                serde_json::from_slice(&bytes)?,
-            )),
+            StatusCode::UNPROCESSABLE_ENTITY => {
+                Ok(GetSpeakersResult::UnprocessableEntity(serde_json::from_slice(&bytes)?))
+            },
             code => bail!("received unexpected {code} from GET speakers"),
         }
     }
@@ -35,9 +35,9 @@ impl Speaker {
         let (status, bytes) = self.get("speakers", &[("speaker_uuid", &uuid.to_string())]).await?;
         match status {
             StatusCode::OK => Ok(GetSpeakerInfoResult::Ok(serde_json::from_slice(&bytes)?)),
-            StatusCode::UNPROCESSABLE_ENTITY => Ok(GetSpeakerInfoResult::UnprocessableEntity(
-                serde_json::from_slice(&bytes)?,
-            )),
+            StatusCode::UNPROCESSABLE_ENTITY => Ok(GetSpeakerInfoResult::UnprocessableEntity(serde_json::from_slice(
+                &bytes,
+            )?)),
             code => bail!("received unexpected {code} from GET speakers"),
         }
     }

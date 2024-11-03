@@ -1,22 +1,30 @@
-use std::{env, process::exit, sync::Arc, time::Duration};
+use std::{env, ffi::OsString, path::Path, process::exit, sync::Arc, time::Duration};
 
 use anyhow::{Context as _, Error, Result};
+use dashmap::DashMap;
 use futures::lock::Mutex;
 use hashbrown::HashMap;
+use jwalk::WalkDir;
 use logging::initialize_logging;
 use serenity::{client::Client, model::gateway::GatewayIntents, prelude::TypeMapKey};
-use songbird::SerenityInit;
+use songbird::{
+    input::{cached::Memory, File},
+    SerenityInit,
+};
 use sqlx::{
     postgres::{PgConnectOptions, PgPoolOptions},
-    ConnectOptions,
-    PgPool,
+    ConnectOptions, PgPool,
 };
 use tokio::signal::unix::{signal, SignalKind};
 use tracing::log::LevelFilter;
 use voicevox::Voicevox;
 
 use crate::{
-    audio::{cache::{ConstCacheable, PredefinedUtterance}, processor::SongbirdAudioProcessor, VoicevoxAudioRepository},
+    audio::{
+        cache::{ConstCacheable, PredefinedUtterance},
+        processor::SongbirdAudioProcessor,
+        VoicevoxAudioRepository,
+    },
     speaker::Speaker,
 };
 
@@ -66,6 +74,14 @@ async fn main() {
         },
     };
 
+    let ss_direcotry = match env::var("SS_DIRECTORY") {
+        Ok(ss_direcotry) => ss_direcotry,
+        Err(error) => {
+            tracing::error!("failed to fetch environment variable SS_DIRECTORY\nError: {error:?}");
+            "".to_string()
+        },
+    };
+
     let pool = match set_up_database().await {
         Ok(pool) => pool,
         Err(error) => {
@@ -90,8 +106,38 @@ async fn main() {
         },
     };
 
-    let audio_repository =
-        VoicevoxAudioRepository::new(voicevox.audio_generator.clone(), SongbirdAudioProcessor, ConstCacheable::<PredefinedUtterance>::new());
+    let audio_repository = VoicevoxAudioRepository::new(
+        voicevox.audio_generator.clone(),
+        SongbirdAudioProcessor,
+        ConstCacheable::<PredefinedUtterance>::new(),
+    );
+
+    if !ss_direcotry.is_empty() && !Path::new(&ss_direcotry).exists() {
+        tracing::error!("{} is not exists.", ss_direcotry);
+        exit(1);
+    };
+    let sounds: DashMap<OsString, Memory> = DashMap::new();
+    if !ss_direcotry.is_empty() {
+        for entry in WalkDir::new(ss_direcotry).into_iter().flatten() {
+            let path = entry.path();
+            if let Some(ext) = path.extension() {
+                if ext == "mp3" || ext == "wav" || ext == "opus" || path.file_stem().is_some() {
+                    let file = File::new(path.clone());
+                    match Memory::new(file.into()).await {
+                        Ok(memory) => {
+                            sounds.insert(path.file_stem().unwrap().to_owned(), memory);
+                        },
+                        Err(error) => {
+                            tracing::error!("{error:?}");
+                            continue;
+                        },
+                    };
+                }
+            }
+        }
+
+        tracing::info!("{} files found!", sounds.len());
+    };
 
     let intents = GatewayIntents::non_privileged() | GatewayIntents::MESSAGE_CONTENT;
     let mut client = match Client::builder(token, intents)
@@ -102,6 +148,7 @@ async fn main() {
             connections: Arc::new(Mutex::new(HashMap::new())),
             kanatrans_host,
             kanatrans_port,
+            sounds: Arc::new(sounds),
         })
         .register_songbird()
         .await

@@ -1,19 +1,17 @@
-use std::{borrow::Cow, error::Error, future::Future, pin::Pin, sync::Arc};
+use std::{borrow::Cow, error::Error, ffi::OsString, future::Future, pin::Pin, sync::Arc};
 
 use anyhow::{bail, Context as _, Result};
+use dashmap::DashMap;
 use futures::{
     future::{self, join_all},
     lock::Mutex,
-    stream,
-    StreamExt,
-    TryFutureExt,
+    stream, StreamExt, TryFutureExt,
 };
 use hashbrown::{HashMap, HashSet};
 use http_body_util::{BodyExt, Empty};
 use hyper::{
     body::{Body, Buf, Bytes},
-    Request,
-    StatusCode,
+    Request, StatusCode,
 };
 use hyper_util::rt::TokioIo;
 use lazy_regex::Regex;
@@ -25,7 +23,11 @@ use serenity::{
     client::{Context, EventHandler},
     model::{application::Interaction, channel::Message, gateway::Ready},
 };
-use songbird::{input::Input, Call};
+use songbird::{
+    input::{cached::Memory, Input},
+    tracks::Track,
+    Call,
+};
 use sqlx::PgPool;
 use tokio::net::TcpStream;
 use tracing::instrument;
@@ -37,14 +39,11 @@ use whatlang::{detect_lang, Lang};
 use crate::{
     audio::{cache::PredefinedUtterance, Audio, AudioRepository},
     character_converter::to_half_width,
-    commands,
-    database,
-    regex,
+    commands, database, regex,
     speaker::Speaker,
     utils::{get_manager, get_voicevox, normalize},
 };
 
-#[derive(Debug)]
 pub(crate) struct Handler<Repository> {
     pub(crate) database: PgPool,
     pub(crate) speaker: Speaker,
@@ -52,6 +51,7 @@ pub(crate) struct Handler<Repository> {
     pub(crate) connections: Arc<Mutex<HashMap<GuildId, SerenityChannelId>>>,
     pub(crate) kanatrans_host: String,
     pub(crate) kanatrans_port: u16,
+    pub(crate) sounds: Arc<DashMap<OsString, Memory>>,
 }
 
 #[derive(Deserialize)]
@@ -191,6 +191,14 @@ where
                 .any(|user| message.author == user)
             {
                 return;
+            }
+
+            if self.sounds.len() > 0 {
+                let os_string: OsString = message.content.clone().into();
+                if let Some(sound) = self.sounds.get(&os_string) {
+                    call.play(Track::from(sound.value().clone()).volume(0.05));
+                    return;
+                }
             }
 
             let ids: Vec<i64> = vec![message.author.id.into()];

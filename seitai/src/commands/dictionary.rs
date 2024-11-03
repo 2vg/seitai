@@ -249,12 +249,10 @@ fn to_option_map(value: &CommandDataOptionValue) -> Option<HashMap<&str, String>
     if let CommandDataOptionValue::SubCommand(value) = value {
         let subcommand_options = value
             .iter()
-            .map(|subcommand_option| {
-                match &subcommand_option.value {
-                    CommandDataOptionValue::String(value) => (subcommand_option.name.as_str(), value.to_string()),
-                    CommandDataOptionValue::Integer(value) => (subcommand_option.name.as_str(), value.to_string()),
-                    _ => unreachable!(),
-                }
+            .map(|subcommand_option| match &subcommand_option.value {
+                CommandDataOptionValue::String(value) => (subcommand_option.name.as_str(), value.to_string()),
+                CommandDataOptionValue::Integer(value) => (subcommand_option.name.as_str(), value.to_string()),
+                _ => unreachable!(),
             })
             .collect();
 

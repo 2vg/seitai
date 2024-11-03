@@ -2,13 +2,8 @@ use anyhow::{Context as _, Result};
 use serenity::{
     all::{CommandDataOptionValue, CommandOptionType},
     builder::{
-        AutocompleteChoice,
-        CreateAutocompleteResponse,
-        CreateCommand,
-        CreateCommandOption,
-        CreateEmbed,
-        CreateInteractionResponse,
-        CreateInteractionResponseMessage,
+        AutocompleteChoice, CreateAutocompleteResponse, CreateCommand, CreateCommandOption, CreateEmbed,
+        CreateInteractionResponse, CreateInteractionResponseMessage,
     },
     client::Context,
     model::{application::CommandInteraction, Colour},
@@ -38,7 +33,7 @@ pub(crate) async fn run(
                     .await?
                     .speaker_id,
             )
-                .context("failed to convert speaker_id to u16")?;
+            .context("failed to convert speaker_id to u16")?;
             let speaker_name = speaker.get_name(speaker_id)?;
 
             let message = CreateInteractionResponseMessage::new().embed(
@@ -55,7 +50,7 @@ pub(crate) async fn run(
                     .await?
                     .speaker_id,
             )
-                .context("failed to convert speaker_id to u16")?;
+            .context("failed to convert speaker_id to u16")?;
             let speaker_name = speaker.get_name(speaker_id)?;
 
             let message = CreateInteractionResponseMessage::new().embed(
@@ -90,7 +85,7 @@ pub(crate) async fn run(
                     .colour(Colour::FOOYOO),
             );
             respond(context, interaction, &message).await?;
-        }
+        },
         _ => unreachable!(),
     }
 
@@ -142,7 +137,9 @@ pub(crate) async fn autocomplete(context: &Context, interaction: &CommandInterac
         let choices = speaker
             .pairs()
             .filter_map(|(name_pairs, id)| {
-                name_pairs.contains(value).then_some(Some(AutocompleteChoice::new(format!("{name_pairs}"), id)))
+                name_pairs
+                    .contains(value)
+                    .then_some(Some(AutocompleteChoice::new(format!("{name_pairs}"), id)))
             })
             .flatten()
             .take(25)

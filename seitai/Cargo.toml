@@ -4,6 +4,8 @@ version = "0.1.23"
 edition = "2021"
 
 [dependencies]
+dashmap = "6.1.0"
+jwalk = "0.8.1"
 wana_kana = "4.0.0"
 whatlang = "0.16.4"
 
@@ -75,7 +77,7 @@ version = "0.26.3"
 
 [dependencies.symphonia]
 version = "0.5.4"
-features = ["wav"]
+features = ["mp3", "wav"]
 
 [dependencies.tokio]
 workspace = true

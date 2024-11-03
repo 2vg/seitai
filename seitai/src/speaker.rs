@@ -56,9 +56,10 @@ impl Speaker {
 
     fn to_speaker_tuples(speakers: &[VoicevoxSpeaker]) -> impl Iterator<Item = (NamePair, u16)> + '_ {
         speakers.iter().flat_map(|speaker| {
-            speaker.styles.iter().map(|style| {
-                (NamePair(speaker.name.as_str(), style.name.as_str()), style.id)
-            })
+            speaker
+                .styles
+                .iter()
+                .map(|style| (NamePair(speaker.name.as_str(), style.name.as_str()), style.id))
         })
     }
 }

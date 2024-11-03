@@ -4,8 +4,7 @@ use anyhow::{Context, Result};
 use http_body_util::{BodyExt, Empty};
 use hyper::{
     body::{Body, Bytes},
-    Request as _Request,
-    StatusCode,
+    Request as _Request, StatusCode,
 };
 use hyper_util::rt::TokioIo;
 use tokio::net::TcpStream;

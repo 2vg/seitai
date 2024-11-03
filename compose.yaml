@@ -35,7 +35,10 @@ services:
       - type: bind
         source: restarter
         target: /usr/src/myapp/restarter
-    command: /bin/sh -c 'cargo run -p seitai'
+      - type: bind
+        source: saysounds
+        target: /usr/src/myapp/saysounds
+    command: /bin/sh -c 'cargo run -p seitai --release'
     environment:
       DISCORD_TOKEN:
       VOICEVOX_HOST: voicevox
