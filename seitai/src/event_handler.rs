@@ -31,6 +31,8 @@ use tokio::net::TcpStream;
 use tracing::instrument;
 use url::Url;
 use voicevox::dictionary::response::GetUserDictResult;
+use wana_kana::ConvertJapanese;
+use whatlang::{detect_lang, Lang};
 
 use crate::{
     audio::{cache::PredefinedUtterance, Audio, AudioRepository},
@@ -249,9 +251,15 @@ where
                 .split('\n')
                 {
                     let text = text.trim();
+                    let text_opt = detect_lang(&text);
                     if text.is_empty() {
                         continue;
                     }
+                    let text = if text_opt.unwrap() == Lang::Jpn {
+                        text.to_string()
+                    } else {
+                        text.to_hiragana()
+                    };
 
                     let audio = Audio {
                         text: text.to_string(),

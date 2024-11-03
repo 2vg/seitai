@@ -3,6 +3,10 @@ name = "seitai"
 version = "0.1.23"
 edition = "2021"
 
+[dependencies]
+wana_kana = "4.0.0"
+whatlang = "0.16.4"
+
 [dependencies.anyhow]
 workspace = true
 
