@@ -1,23 +1,18 @@
 use std::{borrow::Cow, error::Error, ffi::OsString, future::Future, pin::Pin, sync::Arc};
 
-use anyhow::{bail, Context as _, Result};
+use anyhow::{Context as _, Result};
 use dashmap::DashMap;
-use futures::{
-    future::{self, join_all},
-    lock::Mutex,
-    stream, StreamExt, TryFutureExt,
-};
-use hashbrown::{HashMap, HashSet};
-use http_body_util::{BodyExt, Empty};
+use futures::{future::join_all, lock::Mutex, stream, StreamExt};
+use hashbrown::HashMap;
+use http_body_util::BodyExt;
 use hyper::{
-    body::{Body, Buf, Bytes},
+    body::{Body, Buf},
     Request, StatusCode,
 };
 use hyper_util::rt::TokioIo;
 use lazy_regex::Regex;
 use ordered_float::NotNan;
-use regex_lite::Captures;
-use serde::{de::DeserializeOwned, Deserialize};
+use serde::de::DeserializeOwned;
 use serenity::{
     all::{ChannelId as SerenityChannelId, ChannelType, GuildId, VoiceState},
     client::{Context, EventHandler},
@@ -52,17 +47,6 @@ pub(crate) struct Handler<Repository> {
     pub(crate) kanatrans_host: String,
     pub(crate) kanatrans_port: u16,
     pub(crate) sounds: Arc<DashMap<OsString, Memory>>,
-}
-
-#[derive(Deserialize)]
-pub(crate) struct Arpabet {
-    word: String,
-    pronunciation: Vec<String>,
-}
-
-#[derive(Deserialize)]
-pub(crate) struct Katakana {
-    pronunciation: String,
 }
 
 enum Replacement {
@@ -196,7 +180,7 @@ where
             if self.sounds.len() > 0 {
                 let os_string: OsString = message.content.clone().into();
                 if let Some(sound) = self.sounds.get(&os_string) {
-                    call.play(Track::from(sound.value().clone()).volume(0.01));
+                    call.play(Track::from(sound.value().clone()).volume(0.02));
                     return;
                 }
             }
@@ -259,15 +243,10 @@ where
                 .split('\n')
                 {
                     let text = text.trim();
-                    let text_opt = detect_lang(&text);
+
                     if text.is_empty() {
                         continue;
                     }
-                    let text = if text_opt.unwrap() == Lang::Jpn {
-                        text.to_string()
-                    } else {
-                        text.to_hiragana()
-                    };
 
                     let audio = Audio {
                         text: text.to_string(),
@@ -437,9 +416,9 @@ where
 async fn replace_message<'a>(
     context: &Context,
     message: &'a Message,
-    kanatrans_host: &str,
-    kanatrans_port: u16,
-    dictionary_words: &[String],
+    _kanatrans_host: &str,
+    _kanatrans_port: u16,
+    _dictionary_words: &[String],
 ) -> Cow<'a, str> {
     let Some(guild_id) = message.guild_id else {
         return Cow::Borrowed(&message.content);
@@ -464,67 +443,14 @@ async fn replace_message<'a>(
                     Cow::Borrowed(borrowed) => Cow::Owned(borrowed.to_owned()),
                     Cow::Owned(owned) => Cow::Owned(owned),
                 },
-                Replacement::Katakana(regex) => {
-                    let accumulator = &accumulator;
-
-                    let conversion_map = stream::iter(
-                        regex
-                            .find_iter(accumulator)
-                            .map(|word| word.as_str())
-                            .collect::<HashSet<_>>(),
+                Replacement::Katakana(_regex) => {
+                    let cloned = accumulator.into_owned();
+                    let text_opt = detect_lang(&cloned);
+                    Cow::Owned(
+                        text_opt
+                            .filter(|&opt| opt == Lang::Jpn)
+                            .map_or_else(|| cloned.to_hiragana(), |_| cloned.to_string()),
                     )
-                    .map(|word| async move {
-                        if word.chars().all(char::is_uppercase)
-                            || dictionary_words.iter().any(|dictionary_word| dictionary_word == word)
-                        {
-                            return None;
-                        }
-
-                        match get_arpabet(kanatrans_host, kanatrans_port, word)
-                            .and_then(|arpabet| async move {
-                                get_katakana(
-                                    kanatrans_host,
-                                    kanatrans_port,
-                                    Some(&arpabet.word),
-                                    &arpabet.pronunciation,
-                                )
-                                .await
-                            })
-                            .await
-                        {
-                            Ok(katakana) => Some((word, katakana.pronunciation)),
-                            Err(err) => {
-                                tracing::error!("failed to get katakana\nError: {err:?}");
-                                None
-                            },
-                        }
-                    })
-                    .collect::<Vec<_>>()
-                    .await;
-
-                    let conversion_map = future::join_all(conversion_map)
-                        .await
-                        .into_iter()
-                        .flatten()
-                        .collect::<HashMap<_, _>>();
-
-                    if conversion_map.is_empty() {
-                        return accumulator.clone();
-                    }
-
-                    let replaced = regex.replace_all(accumulator, |captures: &Captures| {
-                        let word = &captures[0];
-                        match conversion_map.get(word) {
-                            Some(pronunciation) => pronunciation.to_owned(),
-                            None => word.to_owned(),
-                        }
-                    });
-
-                    match replaced {
-                        Cow::Borrowed(borrowed) if borrowed.len() == accumulator.len() => accumulator.clone(),
-                        Cow::Borrowed(borrowed) => Cow::Owned(borrowed.to_owned()),
-                        Cow::Owned(owned) => Cow::Owned(owned),
-                    }
                 },
             }
         })
@@ -580,7 +506,7 @@ async fn handle_connect<Repository>(
     }
 }
 
-async fn request<RequestBody, Response>(url: Url, request: Request<RequestBody>) -> Result<(StatusCode, Response)>
+async fn _request<RequestBody, Response>(url: Url, request: Request<RequestBody>) -> Result<(StatusCode, Response)>
 where
     RequestBody: Body + Send + Unpin + 'static,
     RequestBody::Data: Send,
@@ -604,44 +530,4 @@ where
     let json = serde_json::from_reader(body.reader())?;
 
     Ok((status, json))
-}
-
-async fn get_arpabet(host: &str, port: u16, word: &str) -> Result<Arpabet> {
-    let url = Url::parse(&format!("http://{host}:{port}/arpabet/{word}"))?;
-    let req = Request::get(url.path())
-        .header(hyper::header::HOST, url.authority())
-        .body(Empty::<Bytes>::new())
-        .with_context(|| format!("failed to request with GET {url}"))?;
-    let (status, arpabet) = request(url, req).await?;
-
-    match status {
-        StatusCode::OK => Ok(arpabet),
-        StatusCode::UNPROCESSABLE_ENTITY => bail!("cannot convert {word} to ARPAbet"),
-        code => bail!("received unexpected {code} from GET /arpabet/{word}"),
-    }
-}
-
-async fn get_katakana(host: &str, port: u16, word: Option<&str>, pronunciation: &[String]) -> Result<Katakana> {
-    let pronunciation = pronunciation.join(" ");
-    let mut params = HashMap::new();
-    params.insert("pronunciation", pronunciation.as_str());
-    if let Some(word) = word {
-        params.insert("word", word);
-    }
-    let url = Url::parse_with_params(&format!("http://{host}:{port}/katakana"), params)?;
-    let uri = format!("{}?{}", url.path(), url.query().unwrap_or_default());
-    let req = Request::get(uri)
-        .header(hyper::header::HOST, url.authority())
-        .header(hyper::header::CONTENT_TYPE, "application/json")
-        .body(Empty::<Bytes>::new())
-        .with_context(|| format!("failed to request with GET {url}"))?;
-    let (status, katakana) = request(url.clone(), req).await?;
-
-    match status {
-        StatusCode::OK => Ok(katakana),
-        code => bail!(
-            "received unexpected {code} from GET /katakana with {}",
-            url.query().unwrap_or_default()
-        ),
-    }
 }

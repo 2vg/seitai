@@ -5,3 +5,4 @@ export PGHOST=database.seitai.localhost
 export PGDATABASE=seitai
 export PGUSER=seitai
 export PGPASSWORD=seitai
+export SS_DIRECTORY=
