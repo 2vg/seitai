@@ -12,13 +12,16 @@ use serenity::{
     builder::{CreateInteractionResponse, CreateInteractionResponseMessage},
     client::Context,
     model::{application::CommandInteraction, guild::Guild},
-    utils::{content_safe, ContentSafeOptions},
+    utils::{ContentSafeOptions, content_safe},
 };
 use songbird::Songbird;
 use soundboard::sound::SoundId;
 use voicevox::Voicevox;
 
-use crate::{regex::{self, SOUNDMOJI}, VoicevoxClient};
+use crate::{
+    VoicevoxClient,
+    regex::{self, SOUNDMOJI},
+};
 
 pub(crate) async fn get_manager(context: &Context) -> Result<Arc<Songbird>> {
     songbird::get(context)
@@ -150,23 +153,24 @@ impl RateLimiter {
         }
 
         // 古いメッセージを削除
-        user_state.messages.retain(|time| now.duration_since(*time) <= self.time_window);
+        user_state
+            .messages
+            .retain(|time| now.duration_since(*time) <= self.time_window);
 
         // メッセージ数をチェック
         if user_state.messages.len() >= self.max_messages {
             // 違反回数を増やしてクールダウンを設定
             user_state.violation_count += 1;
-            
+
             // クールダウン時間を計算（基本時間 × 乗数^違反回数）
             let cooldown_duration = Duration::from_secs_f32(
-                self.base_cooldown.as_secs_f32() * 
-                self.cooldown_multiplier.powi(user_state.violation_count as i32)
+                self.base_cooldown.as_secs_f32() * self.cooldown_multiplier.powi(user_state.violation_count as i32),
             );
-            
+
             // 最大クールダウン時間を超えないように調整
             let cooldown_duration = cooldown_duration.min(self.max_cooldown);
             user_state.cooldown_until = Some(now + cooldown_duration);
-            
+
             return false;
         }
 

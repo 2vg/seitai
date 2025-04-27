@@ -53,11 +53,20 @@ impl SoundId {
         self.0.get()
     }
 
-    pub async fn to_soundboard_sound(&self, http: impl AsRef<Http>, guild_id: GuildId) -> Result<SoundboardSound, SoundboardError> {
+    pub async fn to_soundboard_sound(
+        &self,
+        http: impl AsRef<Http>,
+        guild_id: GuildId,
+    ) -> Result<SoundboardSound, SoundboardError> {
         crate::soundboard::sound(http, guild_id, *self).await
     }
 
-    pub async fn send(&self, http: impl AsRef<Http>, channel_id: ChannelId, guild_id: Option<GuildId>) -> Result<(), SoundboardError> {
+    pub async fn send(
+        &self,
+        http: impl AsRef<Http>,
+        channel_id: ChannelId,
+        guild_id: Option<GuildId>,
+    ) -> Result<(), SoundboardError> {
         let url = client::BASE_URL
             .join(&format!("channels/{channel_id}/send-soundboard-sound"))
             .map_err(SoundboardError::InvalidUrl)?;

@@ -1,7 +1,7 @@
 use std::process;
 
 use anyhow::Result;
-use clap::{error::ErrorKind, Parser};
+use clap::{Parser, error::ErrorKind};
 use database::migrations::{MigrationCommand, Migrator};
 
 use crate::{set_up_database, start_bot};
@@ -18,7 +18,7 @@ pub struct Cli {
 
 #[derive(clap::Subcommand)]
 enum Subcommand {
-    Migration(MigrationCommand)
+    Migration(MigrationCommand),
 }
 
 impl Application {
@@ -40,7 +40,9 @@ impl Application {
 
         #[allow(irrefutable_let_patterns)]
         if let Subcommand::Migration(migration) = cli.subcommand {
-            migration.run(&mut *pgpool.acquire().await?, migrator.into_boxed_inner()).await?;
+            migration
+                .run(&mut *pgpool.acquire().await?, migrator.into_boxed_inner())
+                .await?;
             process::exit(0);
         }
 

@@ -1,6 +1,6 @@
 pub mod response;
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use hyper::StatusCode;
 use url::Url;
 use uuid::Uuid;

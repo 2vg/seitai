@@ -1,5 +1,5 @@
-use anyhow::{bail, Context as _, Result};
-use futures::{future, stream, StreamExt};
+use anyhow::{Context as _, Result, bail};
+use futures::{StreamExt, future, stream};
 use hashbrown::HashMap;
 use indexmap::IndexMap;
 use ordered_float::NotNan;
@@ -7,17 +7,17 @@ use serenity::{
     all::{CommandDataOptionValue, CommandOptionType},
     builder::{CreateCommand, CreateCommandOption, CreateEmbed, CreateInteractionResponseMessage},
     client::Context,
-    model::{application::CommandInteraction, Colour},
+    model::{Colour, application::CommandInteraction},
 };
 use songbird::input::Input;
 use uuid::Uuid;
 use voicevox::dictionary::{
-    response::{DeleteUserDictWordResult, GetUserDictResult, PostUserDictWordResult, PutUserDictWordResult},
     Dictionary,
+    response::{DeleteUserDictWordResult, GetUserDictResult, PostUserDictWordResult, PutUserDictWordResult},
 };
 
 use crate::{
-    audio::{cache::PredefinedUtterance, Audio, AudioRepository},
+    audio::{Audio, AudioRepository, cache::PredefinedUtterance},
     character_converter::{to_full_width, to_half_width, to_katakana},
     regex,
     speaker::Speaker,
@@ -59,12 +59,10 @@ where
         let mut subcommand_options = subcommand
             .options
             .into_iter()
-            .map(|(k, v)| {
-                match v {
-                    CommandDataOptionValue::String(v) => (k, v.to_string()),
-                    CommandDataOptionValue::Integer(v) => (k, v.to_string()),
-                    _ => unreachable!(),
-                }
+            .map(|(k, v)| match v {
+                CommandDataOptionValue::String(v) => (k, v.to_string()),
+                CommandDataOptionValue::Integer(v) => (k, v.to_string()),
+                _ => unreachable!(),
             })
             .collect::<HashMap<_, _>>();
         subcommand_options

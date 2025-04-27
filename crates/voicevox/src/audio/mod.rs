@@ -1,8 +1,8 @@
 pub mod response;
 
-use anyhow::{bail, Context as _, Result};
+use anyhow::{Context as _, Result, bail};
 use http_body_util::{Empty, Full};
-use hyper::{body::Bytes, StatusCode};
+use hyper::{StatusCode, body::Bytes};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use url::Url;

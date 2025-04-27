@@ -2,7 +2,7 @@ use anyhow::{Context as _, Result};
 use serenity::{
     builder::{CreateCommand, CreateEmbed, CreateInteractionResponseMessage},
     client::Context,
-    model::{application::CommandInteraction, Colour},
+    model::{Colour, application::CommandInteraction},
 };
 
 use crate::utils::{get_guild, get_manager, respond};

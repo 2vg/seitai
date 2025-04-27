@@ -7,7 +7,7 @@ use serenity::{
         CreateInteractionResponse, CreateInteractionResponseMessage,
     },
     client::Context,
-    model::{application::CommandInteraction, Colour},
+    model::{Colour, application::CommandInteraction},
 };
 
 use crate::{speaker::Speaker, utils::respond};

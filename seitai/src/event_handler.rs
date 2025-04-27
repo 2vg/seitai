@@ -3,12 +3,12 @@ use std::{borrow::Cow, error::Error, ffi::OsString, pin::Pin, sync::Arc, time::D
 use anyhow::{Context as _, Result};
 use dashmap::DashMap;
 use database::PgPool;
-use futures::{future::join_all, lock::Mutex, stream, StreamExt};
+use futures::{StreamExt, future::join_all, lock::Mutex, stream};
 use hashbrown::HashMap;
 use http_body_util::BodyExt;
 use hyper::{
-    body::{Body, Buf},
     Request, StatusCode,
+    body::{Body, Buf},
 };
 use hyper_util::rt::TokioIo;
 use lazy_regex::Regex;
@@ -20,9 +20,9 @@ use serenity::{
     model::{application::Interaction, channel::Message, gateway::Ready},
 };
 use songbird::{
-    input::{cached::Memory, Input},
-    tracks::Track,
     Call,
+    input::{Input, cached::Memory},
+    tracks::Track,
 };
 use soundboard::sound::SoundId;
 use tokio::net::TcpStream;
@@ -30,16 +30,15 @@ use tracing::instrument;
 use url::Url;
 use voicevox::dictionary::response::GetUserDictResult;
 use wana_kana::ConvertJapanese;
-use whatlang::{detect_lang, Lang};
+use whatlang::{Lang, detect_lang};
 
 use crate::{
-    audio::{cache::PredefinedUtterance, Audio, AudioRepository},
+    audio::{Audio, AudioRepository, cache::PredefinedUtterance},
     character_converter::to_half_width,
-    commands,
-    database,
-    regex,
+    commands, regex,
     speaker::Speaker,
-    utils::{get_manager, get_voicevox, normalize, RateLimiter},
+    time_keepr::TimeKeeper,
+    utils::{RateLimiter, get_manager, get_voicevox, normalize},
 };
 
 pub(crate) struct Handler<Repository> {
@@ -81,7 +80,13 @@ where
                         "dictionary" => commands::dictionary::run(&context, &self.audio_repository, &command).await,
                         "help" => commands::help::run(&context, &command).await,
                         "join" => {
-                            commands::join::run(&context, &self.audio_repository, &mut *self.connections.lock().await, &command).await
+                            commands::join::run(
+                                &context,
+                                &self.audio_repository,
+                                &mut *self.connections.lock().await,
+                                &command,
+                            )
+                            .await
                         },
                         "leave" => commands::leave::run(&context, &command).await,
                         "voice" => commands::voice::run(&context, &command, &self.database, &self.speaker).await,
@@ -180,6 +185,66 @@ where
                 .map(|member| member.user)
                 .any(|user| message.author == user)
             {
+                return;
+            }
+
+            let channel_message_at = match message.channel_id.to_channel(&context.http).await {
+                Ok(channel_at) => channel_at,
+                Err(error) => {
+                    tracing::error!("failed to get channel: {channel_id_bot_at:?}\nError: {error:?}");
+                    return;
+                },
+            };
+
+            let serenity::all::Channel::Guild(channel_message_at) = channel_message_at else {
+                return;
+            };
+
+            if channel_message_at.kind == ChannelType::Voice && self.sounds.len() > 0 {
+                if !self.rate_limiter.check_rate_limit(message.author.id).await {
+                    return;
+                }
+                let os_string: OsString = message.content.clone().into();
+                if let Some(sound) = self.sounds.get(&os_string) {
+                    call.play(Track::from(sound.value().clone()).volume(0.02));
+                    return;
+                }
+            }
+
+            if !message.sticker_items.is_empty() {
+                let sticker_ids = message.sticker_items.into_iter().map(|v| v.id.get());
+                let soundstickers =
+                    match database::soundsticker::fetch_by_ids(&self.database, sticker_ids.clone()).await {
+                        Ok(soundstickers) => soundstickers,
+                        Err(err) => {
+                            tracing::error!(
+                                "failed to fetch soundstickers by ids: {:?}\nError: {err:?}",
+                                sticker_ids.collect::<Vec<_>>()
+                            );
+                            return;
+                        },
+                    };
+
+                for soundsticker in soundstickers {
+                    let sound_id = SoundId::new(soundsticker.sound_id);
+                    let sound_guild_id = soundsticker.sound_guild_id.map(GuildId::new).or(Some(guild_id));
+
+                    let mut last_sent = self.time_keeper.lock().await;
+                    // guild_id in params of last_sent is where bot sent sound, not where sound is registered.
+                    let key = (guild_id, sound_id);
+                    if last_sent.is_elapsed(&key, Duration::from_secs(10)) {
+                        continue;
+                    }
+
+                    match sound_id.send(&context.http, channel_id_bot_at, sound_guild_id).await {
+                        Ok(_) => last_sent.record(key),
+                        Err(err) => {
+                            tracing::error!("failed to send soundboard sound {sound_id:?}\nError: {err:?}");
+                            continue;
+                        },
+                    };
+                }
+
                 return;
             }
 
@@ -444,67 +509,14 @@ async fn replace_message<'a>(
                     Cow::Borrowed(borrowed) => Cow::Owned(borrowed.to_owned()),
                     Cow::Owned(owned) => Cow::Owned(owned),
                 },
-                Replacement::Katakana(regex) => {
-                    let accumulator = &accumulator;
-
-                    let conversion_map = stream::iter(
-                        regex
-                            .find_iter(accumulator)
-                            .map(|word| word.as_str())
-                            .collect::<HashSet<_>>(),
+                Replacement::Katakana(_regex) => {
+                    let cloned = accumulator.into_owned();
+                    let text_opt = detect_lang(&cloned);
+                    Cow::Owned(
+                        text_opt
+                            .filter(|&opt| opt == Lang::Jpn)
+                            .map_or_else(|| cloned.to_hiragana(), |_| cloned.to_string()),
                     )
-                    .map(|word| async move {
-                        if word.chars().all(char::is_uppercase)
-                            || dictionary_words.iter().any(|dictionary_word| dictionary_word == word)
-                        {
-                            return None;
-                        }
-
-                        match get_arpabet(kanatrans_host, kanatrans_port, word)
-                            .and_then(|arpabet| async move {
-                                get_katakana(
-                                    kanatrans_host,
-                                    kanatrans_port,
-                                    Some(&arpabet.word),
-                                    &arpabet.pronunciation,
-                                )
-                                .await
-                            })
-                            .await
-                        {
-                            Ok(katakana) => Some((word, katakana.pronunciation)),
-                            Err(err) => {
-                                tracing::error!("failed to get katakana\nError: {err:?}");
-                                None
-                            },
-                        }
-                    })
-                    .collect::<Vec<_>>()
-                    .await;
-
-                    let conversion_map = future::join_all(conversion_map)
-                        .await
-                        .into_iter()
-                        .flatten()
-                        .collect::<HashMap<_, _>>();
-
-                    if conversion_map.is_empty() {
-                        return accumulator.clone();
-                    }
-
-                    let replaced = regex.replace_all(accumulator, |captures: &Captures| {
-                        let word = &captures[0];
-                        match conversion_map.get(word) {
-                            Some(pronunciation) => pronunciation.to_owned(),
-                            None => word.to_owned(),
-                        }
-                    });
-
-                    match replaced {
-                        Cow::Borrowed(borrowed) if borrowed.len() == accumulator.len() => accumulator.clone(),
-                        Cow::Borrowed(borrowed) => Cow::Owned(borrowed.to_owned()),
-                        Cow::Owned(owned) => Cow::Owned(owned),
-                    }
                 },
             }
         })

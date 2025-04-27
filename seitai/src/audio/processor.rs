@@ -1,7 +1,7 @@
 use anyhow::Result;
 use songbird::{
     driver::Bitrate,
-    input::{cached::Compressed, Input},
+    input::{Input, cached::Compressed},
 };
 use voicevox::Bytes;
 

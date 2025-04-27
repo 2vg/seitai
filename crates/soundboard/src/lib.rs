@@ -12,7 +12,11 @@ mod soundboard;
 pub trait SoundboardExt {
     fn soundboards(self, http: impl AsRef<Http>) -> impl Future<Output = Result<Soundboard, SoundboardError>>;
 
-    fn sound(self, http: impl AsRef<Http>, sound_id: SoundId) -> impl Future<Output = Result<SoundboardSound, SoundboardError>>;
+    fn sound(
+        self,
+        http: impl AsRef<Http>,
+        sound_id: SoundId,
+    ) -> impl Future<Output = Result<SoundboardSound, SoundboardError>>;
 }
 
 impl SoundboardExt for GuildId {

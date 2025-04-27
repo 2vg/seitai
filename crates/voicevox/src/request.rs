@@ -3,8 +3,8 @@ use std::error::Error;
 use anyhow::{Context, Result};
 use http_body_util::{BodyExt, Empty};
 use hyper::{
-    body::{Body, Bytes},
     Request as _Request, StatusCode,
+    body::{Body, Bytes},
 };
 use hyper_util::rt::TokioIo;
 use tokio::net::TcpStream;

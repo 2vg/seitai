@@ -4,12 +4,16 @@ use anyhow::{Context as _, Result};
 use hashbrown::HashMap;
 use ordered_float::NotNan;
 use serenity::{
-    all::{ChannelId, GuildId}, async_trait, builder::{CreateCommand, CreateEmbed, CreateInteractionResponseMessage}, client::Context, model::{application::CommandInteraction, Colour}
+    all::{ChannelId, GuildId},
+    async_trait,
+    builder::{CreateCommand, CreateEmbed, CreateInteractionResponseMessage},
+    client::Context,
+    model::{Colour, application::CommandInteraction},
 };
-use songbird::{input::Input, CoreEvent, Event, EventContext, EventHandler, Songbird};
+use songbird::{CoreEvent, Event, EventContext, EventHandler, Songbird, input::Input};
 
 use crate::{
-    audio::{cache::PredefinedUtterance, Audio, AudioRepository},
+    audio::{Audio, AudioRepository, cache::PredefinedUtterance},
     speaker::Speaker,
     utils::{get_guild, get_manager, respond},
 };

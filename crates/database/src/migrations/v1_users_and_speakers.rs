@@ -11,7 +11,10 @@ pub(crate) struct CreateIndexOperation;
 pub(crate) struct V1Migration;
 
 impl Operation<Postgres> for CreateTableOperation {
-    fn up<'a, 'b, 'async_trait>(&'a self, connection: &'b mut PgConnection) -> BoxFuture<'async_trait, Result<(), sqlx_migrator::error::Error>>
+    fn up<'a, 'b, 'async_trait>(
+        &'a self,
+        connection: &'b mut PgConnection,
+    ) -> BoxFuture<'async_trait, Result<(), sqlx_migrator::error::Error>>
     where
         Self: 'async_trait,
         'a: 'async_trait,
@@ -40,22 +43,21 @@ impl Operation<Postgres> for CreateTableOperation {
         })
     }
 
-    fn down<'a, 'b, 'async_trait>(&'a self, connection: &'b mut PgConnection) -> BoxFuture<'async_trait, Result<(), sqlx_migrator::error::Error>>
+    fn down<'a, 'b, 'async_trait>(
+        &'a self,
+        connection: &'b mut PgConnection,
+    ) -> BoxFuture<'async_trait, Result<(), sqlx_migrator::error::Error>>
     where
         Self: 'async_trait,
         'a: 'async_trait,
         'b: 'async_trait,
     {
         Box::pin(async {
-            let sql = Table::drop()
-                .table(DatabaseUser::Table)
-                .build(PostgresQueryBuilder);
+            let sql = Table::drop().table(DatabaseUser::Table).build(PostgresQueryBuilder);
 
             sqlx::query(&sql).execute(&mut *connection).await?;
 
-            let sql = Table::drop()
-                .table(DatabaseSpeaker::Table)
-                .build(PostgresQueryBuilder);
+            let sql = Table::drop().table(DatabaseSpeaker::Table).build(PostgresQueryBuilder);
 
             sqlx::query(&sql).execute(&mut *connection).await?;
 
@@ -65,7 +67,10 @@ impl Operation<Postgres> for CreateTableOperation {
 }
 
 impl Operation<Postgres> for CreateIndexOperation {
-    fn up<'a, 'b, 'async_trait>(&'a self, connection: &'b mut PgConnection) -> BoxFuture<'async_trait, Result<(), sqlx_migrator::error::Error>>
+    fn up<'a, 'b, 'async_trait>(
+        &'a self,
+        connection: &'b mut PgConnection,
+    ) -> BoxFuture<'async_trait, Result<(), sqlx_migrator::error::Error>>
     where
         Self: 'async_trait,
         'a: 'async_trait,
@@ -94,22 +99,21 @@ impl Operation<Postgres> for CreateIndexOperation {
         })
     }
 
-    fn down<'a, 'b, 'async_trait>(&'a self, connection: &'b mut PgConnection) -> BoxFuture<'async_trait, Result<(), sqlx_migrator::error::Error>>
+    fn down<'a, 'b, 'async_trait>(
+        &'a self,
+        connection: &'b mut PgConnection,
+    ) -> BoxFuture<'async_trait, Result<(), sqlx_migrator::error::Error>>
     where
         Self: 'async_trait,
         'a: 'async_trait,
         'b: 'async_trait,
     {
         Box::pin(async {
-            let sql = Index::drop()
-                .name("users_id_idx")
-                .build(PostgresQueryBuilder);
+            let sql = Index::drop().name("users_id_idx").build(PostgresQueryBuilder);
 
             sqlx::query(&sql).execute(&mut *connection).await?;
 
-            let sql = Index::drop()
-                .name("speakers_id_idx")
-                .build(PostgresQueryBuilder);
+            let sql = Index::drop().name("speakers_id_idx").build(PostgresQueryBuilder);
 
             sqlx::query(&sql).execute(&mut *connection).await?;
 
@@ -124,8 +128,5 @@ sqlx_migrator::migration!(
     "seitai",
     "create tables",
     vec_box![],
-    vec_box![
-        CreateTableOperation,
-        CreateIndexOperation,
-    ]
+    vec_box![CreateTableOperation, CreateIndexOperation,]
 );

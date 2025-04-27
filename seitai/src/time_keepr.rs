@@ -1,4 +1,8 @@
-use std::{collections::HashMap, hash::Hash, time::{Duration, Instant}};
+use std::{
+    collections::HashMap,
+    hash::Hash,
+    time::{Duration, Instant},
+};
 
 #[derive(Debug, Default)]
 pub struct TimeKeeper<K: Eq + Hash> {

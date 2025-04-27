@@ -1,4 +1,4 @@
-use lazy_regex::{lazy_regex, Lazy, Regex};
+use lazy_regex::{Lazy, Regex, lazy_regex};
 
 pub(crate) static CODE: Lazy<Regex> = lazy_regex!(r"(?:`[^`]+`|```[^`]+```)");
 pub(crate) static EMOJI: Lazy<Regex> = lazy_regex!(r"<(?:a)?:([[:word:]]+):\d+>");

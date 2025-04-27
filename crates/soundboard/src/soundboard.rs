@@ -60,7 +60,11 @@ pub(crate) async fn soundboards(http: impl AsRef<Http>, guild_id: GuildId) -> Re
     }
 }
 
-pub(crate) async fn sound(http: impl AsRef<Http>, guild_id: GuildId, sound_id: SoundId) -> Result<SoundboardSound, SoundboardError> {
+pub(crate) async fn sound(
+    http: impl AsRef<Http>,
+    guild_id: GuildId,
+    sound_id: SoundId,
+) -> Result<SoundboardSound, SoundboardError> {
     let url = client::BASE_URL
         .join(&format!("guilds/{guild_id}/soundboard-sounds/{sound_id}"))
         .map_err(SoundboardError::InvalidUrl)?;

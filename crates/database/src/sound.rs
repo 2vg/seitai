@@ -13,7 +13,7 @@ pub(crate) enum DatabaseSound {
 }
 
 #[derive(Debug, Default, FromRow)]
-pub(crate) struct  DatabaseSoundRow {
+pub(crate) struct DatabaseSoundRow {
     pub(crate) id: Uuid,
     pub(crate) name: String,
     pub(crate) sound_id: i64,

@@ -1,7 +1,6 @@
 pub use sqlx::{
+    ConnectOptions, PgPool,
     postgres::{PgConnectOptions, PgPoolOptions},
-    ConnectOptions,
-    PgPool,
 };
 
 pub mod migrations;

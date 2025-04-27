@@ -1,8 +1,8 @@
 pub mod response;
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use http_body_util::Empty;
-use hyper::{body::Bytes, StatusCode};
+use hyper::{StatusCode, body::Bytes};
 use url::Url;
 use uuid::Uuid;
 

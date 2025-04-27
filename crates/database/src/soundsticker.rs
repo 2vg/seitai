@@ -4,10 +4,13 @@ use anyhow::Result;
 use futures::TryStreamExt;
 use sea_query::{Alias, Expr, Iden, OnConflict, PostgresQueryBuilder, Query};
 use sea_query_binder::SqlxBinder;
-use sqlx::{postgres::PgRow, prelude::FromRow, PgPool, Row};
+use sqlx::{PgPool, Row, postgres::PgRow, prelude::FromRow};
 use uuid::Uuid;
 
-use crate::{sound::{DatabaseSound, DatabaseSoundRow}, sticker::{DatabaseSticker, DatabaseStickerRow}};
+use crate::{
+    sound::{DatabaseSound, DatabaseSoundRow},
+    sticker::{DatabaseSticker, DatabaseStickerRow},
+};
 
 #[derive(Iden)]
 pub(crate) enum DatabaseSoundsticker {
@@ -46,10 +49,14 @@ impl FromRow<'_, PgRow> for Soundsticker {
             id: row.try_get("id")?,
             sticker_name: row.try_get("sticker_name")?,
             sticker_id: sticker_id as u64,
-            sticker_guild_id: row.try_get("sticker_guild_id").map(|o: Option<i64>| o.map(|v| v as u64))?,
+            sticker_guild_id: row
+                .try_get("sticker_guild_id")
+                .map(|o: Option<i64>| o.map(|v| v as u64))?,
             sound_name: row.try_get("sound_name")?,
             sound_id: sound_id as u64,
-            sound_guild_id: row.try_get("sound_guild_id").map(|o: Option<i64>| o.map(|v| v as u64))?
+            sound_guild_id: row
+                .try_get("sound_guild_id")
+                .map(|o: Option<i64>| o.map(|v| v as u64))?,
         })
     }
 }
@@ -68,13 +75,13 @@ pub async fn create(
 
     let (sql, values) = Query::insert()
         .into_table(DatabaseSound::Table)
-        .columns([
-            DatabaseSound::Name,
-            DatabaseSound::SoundId,
-            DatabaseSound::GuildId,
-        ])
+        .columns([DatabaseSound::Name, DatabaseSound::SoundId, DatabaseSound::GuildId])
         .values_panic([sound_name.into().into(), sound_id.into(), sound_guild_id.into()])
-        .on_conflict(OnConflict::column(DatabaseSound::SoundId).update_columns([DatabaseSound::Name]).to_owned())
+        .on_conflict(
+            OnConflict::column(DatabaseSound::SoundId)
+                .update_columns([DatabaseSound::Name])
+                .to_owned(),
+        )
         .returning(Query::returning().columns([
             DatabaseSound::Id,
             DatabaseSound::Name,
@@ -90,7 +97,7 @@ pub async fn create(
         Ok(sound_row) => sound_row,
         Err(err) => {
             tracing::error!("failed to insert sound\nError: {err:?}");
-            return Err(err.into())
+            return Err(err.into());
         },
     };
 
@@ -102,7 +109,11 @@ pub async fn create(
             DatabaseSticker::GuildId,
         ])
         .values_panic([sticker_name.into().into(), sticker_id.into(), sticker_guild_id.into()])
-        .on_conflict(OnConflict::column(DatabaseSticker::StickerId).update_columns([DatabaseSticker::Name]).to_owned())
+        .on_conflict(
+            OnConflict::column(DatabaseSticker::StickerId)
+                .update_columns([DatabaseSticker::Name])
+                .to_owned(),
+        )
         .returning(Query::returning().columns([
             DatabaseSticker::Id,
             DatabaseSticker::Name,
@@ -118,18 +129,19 @@ pub async fn create(
         Ok(sticker_row) => sticker_row,
         Err(err) => {
             tracing::error!("failed to insert sticker\nError: {err:?}");
-            return Err(err.into())
+            return Err(err.into());
         },
     };
 
     let (sql, values) = Query::insert()
         .into_table(DatabaseSoundsticker::Table)
-        .columns([
-            DatabaseSoundsticker::StickerId,
-            DatabaseSoundsticker::SoundId,
-        ])
+        .columns([DatabaseSoundsticker::StickerId, DatabaseSoundsticker::SoundId])
         .values_panic([sticker_row.id.into(), sound_row.id.into()])
-        .on_conflict(OnConflict::column(DatabaseSoundsticker::StickerId).update_column(DatabaseSoundsticker::SoundId).to_owned())
+        .on_conflict(
+            OnConflict::column(DatabaseSoundsticker::StickerId)
+                .update_column(DatabaseSoundsticker::SoundId)
+                .to_owned(),
+        )
         .returning(Query::returning().columns([
             DatabaseSoundsticker::Id,
             DatabaseSoundsticker::StickerId,
@@ -144,23 +156,21 @@ pub async fn create(
         Ok(soundsticker_row) => soundsticker_row,
         Err(err) => {
             tracing::error!("failed to insert soundsticker\nError: {err:?}");
-            return Err(err.into())
+            return Err(err.into());
         },
     };
 
     tx.commit().await?;
 
-    Ok(
-        Soundsticker {
-            id: soundsticker_row.id,
-            sticker_name: sticker_row.name,
-            sticker_id: sticker_row.sticker_id as u64,
-            sticker_guild_id: sticker_row.guild_id.map(|v| v as u64),
-            sound_name: sound_row.name,
-            sound_id: sound_row.sound_id as u64,
-            sound_guild_id: sound_row.guild_id.map(|v| v as u64),
-        }
-    )
+    Ok(Soundsticker {
+        id: soundsticker_row.id,
+        sticker_name: sticker_row.name,
+        sticker_id: sticker_row.sticker_id as u64,
+        sticker_guild_id: sticker_row.guild_id.map(|v| v as u64),
+        sound_name: sound_row.name,
+        sound_id: sound_row.sound_id as u64,
+        sound_guild_id: sound_row.guild_id.map(|v| v as u64),
+    })
 }
 
 #[tracing::instrument(skip(database))]
@@ -171,21 +181,33 @@ where
     let (sql, values) = Query::select()
         .column((DatabaseSoundsticker::Table, DatabaseSoundsticker::Id))
         .column((DatabaseSound::Table, DatabaseSound::SoundId))
-        .expr_as(Expr::col((DatabaseSound::Table, DatabaseSound::Name)), Alias::new("sound_name"))
-        .expr_as(Expr::col((DatabaseSound::Table, DatabaseSound::GuildId)), Alias::new("sound_guild_id"))
+        .expr_as(
+            Expr::col((DatabaseSound::Table, DatabaseSound::Name)),
+            Alias::new("sound_name"),
+        )
+        .expr_as(
+            Expr::col((DatabaseSound::Table, DatabaseSound::GuildId)),
+            Alias::new("sound_guild_id"),
+        )
         .column((DatabaseSticker::Table, DatabaseSticker::StickerId))
-        .expr_as(Expr::col((DatabaseSticker::Table, DatabaseSticker::Name)), Alias::new("sticker_name"))
-        .expr_as(Expr::col((DatabaseSticker::Table, DatabaseSticker::GuildId)), Alias::new("sticker_guild_id"))
+        .expr_as(
+            Expr::col((DatabaseSticker::Table, DatabaseSticker::Name)),
+            Alias::new("sticker_name"),
+        )
+        .expr_as(
+            Expr::col((DatabaseSticker::Table, DatabaseSticker::GuildId)),
+            Alias::new("sticker_guild_id"),
+        )
         .from(DatabaseSoundsticker::Table)
         .inner_join(
             DatabaseSound::Table,
             Expr::col((DatabaseSoundsticker::Table, DatabaseSoundsticker::SoundId))
-                .equals((DatabaseSound::Table, DatabaseSound::Id))
+                .equals((DatabaseSound::Table, DatabaseSound::Id)),
         )
         .inner_join(
             DatabaseSticker::Table,
             Expr::col((DatabaseSoundsticker::Table, DatabaseSoundsticker::StickerId))
-                .equals((DatabaseSticker::Table, DatabaseSticker::Id))
+                .equals((DatabaseSticker::Table, DatabaseSticker::Id)),
         )
         .and_where(Expr::col((DatabaseSticker::Table, DatabaseSticker::StickerId)).is_in(sticker_ids))
         .build_sqlx(PostgresQueryBuilder);
@@ -209,21 +231,33 @@ pub async fn fetch_all(database: &PgPool) -> Result<Vec<Soundsticker>> {
     let (sql, values) = Query::select()
         .column((DatabaseSoundsticker::Table, DatabaseSoundsticker::Id))
         .column((DatabaseSound::Table, DatabaseSound::SoundId))
-        .expr_as(Expr::col((DatabaseSound::Table, DatabaseSound::Name)), Alias::new("sound_name"))
-        .expr_as(Expr::col((DatabaseSound::Table, DatabaseSound::GuildId)), Alias::new("sound_guild_id"))
+        .expr_as(
+            Expr::col((DatabaseSound::Table, DatabaseSound::Name)),
+            Alias::new("sound_name"),
+        )
+        .expr_as(
+            Expr::col((DatabaseSound::Table, DatabaseSound::GuildId)),
+            Alias::new("sound_guild_id"),
+        )
         .column((DatabaseSticker::Table, DatabaseSticker::StickerId))
-        .expr_as(Expr::col((DatabaseSticker::Table, DatabaseSticker::Name)), Alias::new("sticker_name"))
-        .expr_as(Expr::col((DatabaseSticker::Table, DatabaseSticker::GuildId)), Alias::new("sticker_guild_id"))
+        .expr_as(
+            Expr::col((DatabaseSticker::Table, DatabaseSticker::Name)),
+            Alias::new("sticker_name"),
+        )
+        .expr_as(
+            Expr::col((DatabaseSticker::Table, DatabaseSticker::GuildId)),
+            Alias::new("sticker_guild_id"),
+        )
         .from(DatabaseSoundsticker::Table)
         .inner_join(
             DatabaseSound::Table,
             Expr::col((DatabaseSoundsticker::Table, DatabaseSoundsticker::SoundId))
-                .equals((DatabaseSound::Table, DatabaseSound::Id))
+                .equals((DatabaseSound::Table, DatabaseSound::Id)),
         )
         .inner_join(
             DatabaseSticker::Table,
             Expr::col((DatabaseSoundsticker::Table, DatabaseSoundsticker::StickerId))
-                .equals((DatabaseSticker::Table, DatabaseSticker::Id))
+                .equals((DatabaseSticker::Table, DatabaseSticker::Id)),
         )
         .build_sqlx(PostgresQueryBuilder);
 
@@ -255,7 +289,10 @@ pub async fn delete_by_id(database: &PgPool, id: u64) -> Result<Option<Soundstic
         .and_where(Expr::col(DatabaseSoundsticker::Id).eq(soundsticker.id))
         .build_sqlx(PostgresQueryBuilder);
 
-    if let Err(err) = sqlx::query_with(&sql, values).execute(&mut *database.acquire().await?).await {
+    if let Err(err) = sqlx::query_with(&sql, values)
+        .execute(&mut *database.acquire().await?)
+        .await
+    {
         tracing::error!("failed to get soundsticker\nError: {err:?}");
         return Err(err.into());
     };

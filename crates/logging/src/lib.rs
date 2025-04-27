@@ -1,5 +1,5 @@
 use time::macros::format_description;
-use tracing_subscriber::{fmt::time::UtcTime, EnvFilter};
+use tracing_subscriber::{EnvFilter, fmt::time::UtcTime};
 
 pub fn initialize_logging() {
     let local_timer = UtcTime::new(format_description!(

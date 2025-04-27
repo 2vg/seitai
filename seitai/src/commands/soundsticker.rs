@@ -1,18 +1,13 @@
 use anyhow::{Context as _, Result};
-use database::{soundsticker, PgPool};
+use database::{PgPool, soundsticker};
 use serenity::{
     all::{CommandDataOptionValue, CommandOptionType, Sticker, StickerId},
     builder::{
-        AutocompleteChoice,
-        CreateAutocompleteResponse,
-        CreateCommand,
-        CreateCommandOption,
-        CreateEmbed,
-        CreateInteractionResponse,
-        CreateInteractionResponseMessage,
+        AutocompleteChoice, CreateAutocompleteResponse, CreateCommand, CreateCommandOption, CreateEmbed,
+        CreateInteractionResponse, CreateInteractionResponseMessage,
     },
     client::Context,
-    model::{application::CommandInteraction, Colour},
+    model::{Colour, application::CommandInteraction},
 };
 use soundboard::{Soundboard, SoundboardExt};
 
@@ -25,7 +20,11 @@ pub(crate) async fn run(context: &Context, interaction: &CommandInteraction, dat
     let Some(guild_id) = interaction.guild_id else {
         return Ok(());
     };
-    let subcommand = interaction.data.options.first().context("cannot get /soundsticker subcommand")?;
+    let subcommand = interaction
+        .data
+        .options
+        .first()
+        .context("cannot get /soundsticker subcommand")?;
     let subcommand = Subcommand::from_command_data_option(subcommand).unwrap_or_default();
 
     let sticker_id = subcommand
@@ -35,10 +34,7 @@ pub(crate) async fn run(context: &Context, interaction: &CommandInteraction, dat
         .map(|v| v.parse::<u64>())
         .transpose()?
         .map(StickerId::new);
-    let sound = subcommand
-        .options
-        .get("sound")
-        .and_then(|v| v.as_str());
+    let sound = subcommand.options.get("sound").and_then(|v| v.as_str());
 
     let (sound_id, sound_guild_id) = match sound {
         Some(sound) => match parse_soundmoji(sound)? {
@@ -65,26 +61,30 @@ pub(crate) async fn run(context: &Context, interaction: &CommandInteraction, dat
                 &sound.name,
                 sound.sound_id.get(),
                 sound.guild_id.map(|v| v.get()),
-            ).await?;
+            )
+            .await?;
 
             let message = CreateInteractionResponseMessage::new().embed(
                 CreateEmbed::new()
-                    .description(format!("スタンプ`{}`とサウンド`{}`を紐づけました。", sticker.name, sound.name))
+                    .description(format!(
+                        "スタンプ`{}`とサウンド`{}`を紐づけました。",
+                        sticker.name, sound.name
+                    ))
                     .colour(Colour::FOOYOO),
             );
             respond(context, interaction, &message).await?;
         },
         "list" => {
-            let stickers = soundsticker::fetch_all(database)
-                .await?
-                .into_iter()
-                .map(|v| (format!(":frame_photo: {}", v.sticker_name), format!(":sound: {}", v.sound_name), true));
+            let stickers = soundsticker::fetch_all(database).await?.into_iter().map(|v| {
+                (
+                    format!(":frame_photo: {}", v.sticker_name),
+                    format!(":sound: {}", v.sound_name),
+                    true,
+                )
+            });
 
-            let message = CreateInteractionResponseMessage::new().embed(
-                CreateEmbed::new()
-                    .fields(stickers)
-                    .colour(Colour::FOOYOO),
-            );
+            let message = CreateInteractionResponseMessage::new()
+                .embed(CreateEmbed::new().fields(stickers).colour(Colour::FOOYOO));
             respond(context, interaction, &message).await?;
         },
         "delete" => {
@@ -98,8 +98,7 @@ pub(crate) async fn run(context: &Context, interaction: &CommandInteraction, dat
                 CreateEmbed::new()
                     .description(format!(
                         "スタンプ`{}`とサウンド`{}`の紐づけを解除しました。",
-                        deleted_soundsticker.sticker_name,
-                        deleted_soundsticker.sound_name
+                        deleted_soundsticker.sticker_name, deleted_soundsticker.sound_name
                     ))
                     .colour(Colour::FOOYOO),
             );
@@ -113,16 +112,27 @@ pub(crate) async fn run(context: &Context, interaction: &CommandInteraction, dat
 
 pub fn register() -> CreateCommand {
     let link = {
-        let sticker = CreateCommandOption::new(CommandOptionType::String, "sticker", "Sticker name, choose from among autocomplete")
-            .name_localized("ja", "スタンプ")
-            .description_localized("ja", "スタンプの名前。一覧から選んでください。")
-            .set_autocomplete(true)
-            .required(true);
-        let sound = CreateCommandOption::new(CommandOptionType::String, "sound", "Sound name, choose from among autocomlete or input Soundmoji")
-            .name_localized("ja", "サウンド")
-            .description_localized("ja", "サウンドの名前。一覧から選んでください。または Soundmoji を入力してください。")
-            .set_autocomplete(true)
-            .required(true);
+        let sticker = CreateCommandOption::new(
+            CommandOptionType::String,
+            "sticker",
+            "Sticker name, choose from among autocomplete",
+        )
+        .name_localized("ja", "スタンプ")
+        .description_localized("ja", "スタンプの名前。一覧から選んでください。")
+        .set_autocomplete(true)
+        .required(true);
+        let sound = CreateCommandOption::new(
+            CommandOptionType::String,
+            "sound",
+            "Sound name, choose from among autocomlete or input Soundmoji",
+        )
+        .name_localized("ja", "サウンド")
+        .description_localized(
+            "ja",
+            "サウンドの名前。一覧から選んでください。または Soundmoji を入力してください。",
+        )
+        .set_autocomplete(true)
+        .required(true);
         CreateCommandOption::new(CommandOptionType::SubCommand, "link", "Links sound to sticker")
             .description_localized("ja", "スタンプにサウンドを紐づけます。")
             .add_sub_option(sticker)
@@ -130,14 +140,18 @@ pub fn register() -> CreateCommand {
     };
 
     let list = CreateCommandOption::new(CommandOptionType::SubCommand, "list", "List soundstickers")
-            .description_localized("ja", "サウンドが紐づいたスタンプの一覧を表示します。");
+        .description_localized("ja", "サウンドが紐づいたスタンプの一覧を表示します。");
 
     let delete = {
-        let sticker = CreateCommandOption::new(CommandOptionType::String, "sticker", "Sticker name, choose from among autocomplete")
-            .name_localized("ja", "スタンプ")
-            .description_localized("ja", "スタンプの名前。一覧から選んでください。")
-            .set_autocomplete(true)
-            .required(true);
+        let sticker = CreateCommandOption::new(
+            CommandOptionType::String,
+            "sticker",
+            "Sticker name, choose from among autocomplete",
+        )
+        .name_localized("ja", "スタンプ")
+        .description_localized("ja", "スタンプの名前。一覧から選んでください。")
+        .set_autocomplete(true)
+        .required(true);
         CreateCommandOption::new(CommandOptionType::SubCommand, "delete", "Links sound to sticker")
             .description_localized("ja", "スタンプとサウンド紐づけを解除します。")
             .add_sub_option(sticker)
@@ -153,7 +167,11 @@ pub(crate) async fn autocomplete(context: &Context, interaction: &CommandInterac
         return Ok(());
     };
 
-    let subcommand = interaction.data.options.first().context("cannot get /soundsticker subcommand")?;
+    let subcommand = interaction
+        .data
+        .options
+        .first()
+        .context("cannot get /soundsticker subcommand")?;
 
     let options = match &subcommand.value {
         CommandDataOptionValue::SubCommand(options) => options,

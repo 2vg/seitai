@@ -1,9 +1,9 @@
 use std::fmt;
 
-use anyhow::{bail, Context as _, Result};
+use anyhow::{Context as _, Result, bail};
 use voicevox::{
-    speaker::response::{GetSpeakersResult, Speaker as VoicevoxSpeaker},
     Voicevox,
+    speaker::response::{GetSpeakersResult, Speaker as VoicevoxSpeaker},
 };
 
 #[derive(Debug)]

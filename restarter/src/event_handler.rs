@@ -1,6 +1,6 @@
 use std::{pin::Pin, sync::Arc};
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use futures::lock::Mutex;
 use k8s_openapi::api::apps::v1::StatefulSet;
 use kube::{Api, Client, Config};

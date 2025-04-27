@@ -1,4 +1,4 @@
-use std::collections::{hash_map::IntoIter, HashMap};
+use std::collections::{HashMap, hash_map::IntoIter};
 
 use serenity::all::{CommandDataOption, CommandDataOptionValue};
 
@@ -18,9 +18,9 @@ impl<'a> Subcommand<'a> {
         match &command_data_option.value {
             CommandDataOptionValue::SubCommand(subcommand) => Some(Self {
                 name: &command_data_option.name,
-                options: SubcommandOptions::new(subcommand)
+                options: SubcommandOptions::new(subcommand),
             }),
-            _ => None
+            _ => None,
         }
     }
 }
@@ -37,10 +37,7 @@ impl<'a> IntoIterator for SubcommandOptions<'a> {
 
 impl<'a> SubcommandOptions<'a> {
     pub fn new(options: &'a [CommandDataOption]) -> Self {
-        let inner = options
-            .iter()
-            .map(|v| (v.name.as_str(), &v.value))
-            .collect();
+        let inner = options.iter().map(|v| (v.name.as_str(), &v.value)).collect();
 
         Self { inner }
     }

@@ -1,38 +1,38 @@
 use std::{env, ffi::OsString, path::Path, process::exit, sync::Arc, time::Duration};
 
 use anyhow::{Context as _, Error, Result};
+use cli::Application;
 use dashmap::DashMap;
+use database::{ConnectOptions, PgConnectOptions, PgPool, PgPoolOptions};
 use futures::lock::Mutex;
+use futures::lock::Mutex;
+use hashbrown::HashMap;
 use hashbrown::HashMap;
 use jwalk::WalkDir;
 use logging::initialize_logging;
-use serenity::{client::Client, model::gateway::GatewayIntents, prelude::TypeMapKey};
-use songbird::{
-    input::{cached::Memory, File},
-    SerenityInit,
-};
-use sqlx::{
-    postgres::{PgConnectOptions, PgPoolOptions},
-    ConnectOptions, PgPool,
-};
-use cli::Application;
-use database::{ConnectOptions, PgConnectOptions, PgPool, PgPoolOptions};
-use futures::lock::Mutex;
-use hashbrown::HashMap;
-use time_keepr::TimeKeeper;
 use logging::initialize_logging;
 use serenity::{client::Client, model::gateway::GatewayIntents, prelude::TypeMapKey};
+use serenity::{client::Client, model::gateway::GatewayIntents, prelude::TypeMapKey};
 use songbird::SerenityInit;
-use tokio::signal::unix::{signal, SignalKind};
+use songbird::{
+    SerenityInit,
+    input::{File, cached::Memory},
+};
+use sqlx::{
+    ConnectOptions, PgPool,
+    postgres::{PgConnectOptions, PgPoolOptions},
+};
+use time_keepr::TimeKeeper;
+use tokio::signal::unix::{SignalKind, signal};
 use tracing::log::LevelFilter;
 use utils::RateLimiter;
 use voicevox::Voicevox;
 
 use crate::{
     audio::{
+        VoicevoxAudioRepository,
         cache::{ConstCacheable, PredefinedUtterance},
         processor::SongbirdAudioProcessor,
-        VoicevoxAudioRepository,
     },
     speaker::Speaker,
 };
@@ -220,7 +220,7 @@ pub(crate) async fn wait_for_signal() {
 /// Waits for a signal that requests a graceful shutdown, like SIGTERM or SIGINT.
 #[cfg(unix)]
 async fn wait_for_signal_impl() {
-    use tokio::signal::unix::{signal, SignalKind};
+    use tokio::signal::unix::{SignalKind, signal};
 
     // Infos here:
     // https://www.gnu.org/software/libc/manual/html_node/Termination-Signals.html

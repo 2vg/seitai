@@ -11,7 +11,10 @@ pub(crate) struct CreateIndexOperation;
 pub(crate) struct V2Migration;
 
 impl Operation<Postgres> for CreateTableOperation {
-    fn up<'a, 'b, 'async_trait>(&'a self, connection: &'b mut PgConnection) -> BoxFuture<'async_trait, Result<(), sqlx_migrator::error::Error>>
+    fn up<'a, 'b, 'async_trait>(
+        &'a self,
+        connection: &'b mut PgConnection,
+    ) -> BoxFuture<'async_trait, Result<(), sqlx_migrator::error::Error>>
     where
         Self: 'async_trait,
         'a: 'async_trait,
@@ -21,7 +24,12 @@ impl Operation<Postgres> for CreateTableOperation {
             let sql = Table::create()
                 .if_not_exists()
                 .table(DatabaseSound::Table)
-                .col(ColumnDef::new(DatabaseSound::Id).uuid().default(PgFunc::gen_random_uuid()).primary_key())
+                .col(
+                    ColumnDef::new(DatabaseSound::Id)
+                        .uuid()
+                        .default(PgFunc::gen_random_uuid())
+                        .primary_key(),
+                )
                 .col(ColumnDef::new(DatabaseSound::Name).text())
                 .col(
                     ColumnDef::new(DatabaseSound::SoundId)
@@ -30,7 +38,11 @@ impl Operation<Postgres> for CreateTableOperation {
                         .unique_key()
                         .check(Expr::col(DatabaseSound::SoundId).gt(0)),
                 )
-                .col(ColumnDef::new(DatabaseSound::GuildId).big_integer().check(Expr::col(DatabaseSound::GuildId).gt(0)))
+                .col(
+                    ColumnDef::new(DatabaseSound::GuildId)
+                        .big_integer()
+                        .check(Expr::col(DatabaseSound::GuildId).gt(0)),
+                )
                 .build(PostgresQueryBuilder);
 
             sqlx::query(&sql).execute(&mut *connection).await?;
@@ -38,7 +50,12 @@ impl Operation<Postgres> for CreateTableOperation {
             let sql = Table::create()
                 .if_not_exists()
                 .table(DatabaseSticker::Table)
-                .col(ColumnDef::new(DatabaseSticker::Id).uuid().default(PgFunc::gen_random_uuid()).primary_key())
+                .col(
+                    ColumnDef::new(DatabaseSticker::Id)
+                        .uuid()
+                        .default(PgFunc::gen_random_uuid())
+                        .primary_key(),
+                )
                 .col(ColumnDef::new(DatabaseSticker::Name).text())
                 .col(
                     ColumnDef::new(DatabaseSticker::StickerId)
@@ -47,7 +64,11 @@ impl Operation<Postgres> for CreateTableOperation {
                         .unique_key()
                         .check(Expr::col(DatabaseSticker::StickerId).gt(0)),
                 )
-                .col(ColumnDef::new(DatabaseSticker::GuildId).big_integer().check(Expr::col(DatabaseSticker::GuildId).gt(0)))
+                .col(
+                    ColumnDef::new(DatabaseSticker::GuildId)
+                        .big_integer()
+                        .check(Expr::col(DatabaseSticker::GuildId).gt(0)),
+                )
                 .build(PostgresQueryBuilder);
 
             sqlx::query(&sql).execute(&mut *connection).await?;
@@ -55,12 +76,17 @@ impl Operation<Postgres> for CreateTableOperation {
             let sql = Table::create()
                 .if_not_exists()
                 .table(DatabaseSoundsticker::Table)
-                .col(ColumnDef::new(DatabaseSoundsticker::Id).uuid().default(PgFunc::gen_random_uuid()).primary_key())
+                .col(
+                    ColumnDef::new(DatabaseSoundsticker::Id)
+                        .uuid()
+                        .default(PgFunc::gen_random_uuid())
+                        .primary_key(),
+                )
                 .col(
                     ColumnDef::new(DatabaseSoundsticker::StickerId)
                         .uuid()
                         .not_null()
-                        .unique_key()
+                        .unique_key(),
                 )
                 .col(ColumnDef::new(DatabaseSoundsticker::SoundId).uuid().not_null())
                 .foreign_key(
@@ -83,7 +109,10 @@ impl Operation<Postgres> for CreateTableOperation {
         })
     }
 
-    fn down<'a, 'b, 'async_trait>(&'a self, connection: &'b mut PgConnection) -> BoxFuture<'async_trait, Result<(), sqlx_migrator::error::Error>>
+    fn down<'a, 'b, 'async_trait>(
+        &'a self,
+        connection: &'b mut PgConnection,
+    ) -> BoxFuture<'async_trait, Result<(), sqlx_migrator::error::Error>>
     where
         Self: 'async_trait,
         'a: 'async_trait,
@@ -104,7 +133,10 @@ impl Operation<Postgres> for CreateTableOperation {
 }
 
 impl Operation<Postgres> for CreateIndexOperation {
-    fn up<'a, 'b, 'async_trait>(&'a self, connection: &'b mut PgConnection) -> BoxFuture<'async_trait, Result<(), sqlx_migrator::error::Error>>
+    fn up<'a, 'b, 'async_trait>(
+        &'a self,
+        connection: &'b mut PgConnection,
+    ) -> BoxFuture<'async_trait, Result<(), sqlx_migrator::error::Error>>
     where
         Self: 'async_trait,
         'a: 'async_trait,
@@ -142,16 +174,17 @@ impl Operation<Postgres> for CreateIndexOperation {
         })
     }
 
-    fn down<'a, 'b, 'async_trait>(&'a self, connection: &'b mut PgConnection) -> BoxFuture<'async_trait, Result<(), sqlx_migrator::error::Error>>
+    fn down<'a, 'b, 'async_trait>(
+        &'a self,
+        connection: &'b mut PgConnection,
+    ) -> BoxFuture<'async_trait, Result<(), sqlx_migrator::error::Error>>
     where
         Self: 'async_trait,
         'a: 'async_trait,
         'b: 'async_trait,
     {
         Box::pin(async {
-            let sql = Index::drop()
-                .name("sounds_sound_id_idx")
-                .build(PostgresQueryBuilder);
+            let sql = Index::drop().name("sounds_sound_id_idx").build(PostgresQueryBuilder);
 
             sqlx::query(&sql).execute(&mut *connection).await?;
 
@@ -178,8 +211,5 @@ sqlx_migrator::migration!(
     "seitai",
     "create soundstickers",
     vec_box![],
-    vec_box![
-        CreateTableOperation,
-        CreateIndexOperation,
-    ]
+    vec_box![CreateTableOperation, CreateIndexOperation,]
 );
