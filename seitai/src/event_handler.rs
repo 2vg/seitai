@@ -1,7 +1,8 @@
-use std::{borrow::Cow, error::Error, ffi::OsString, future::Future, pin::Pin, sync::Arc};
+use std::{borrow::Cow, error::Error, ffi::OsString, pin::Pin, sync::Arc, time::Duration};
 
 use anyhow::{Context as _, Result};
 use dashmap::DashMap;
+use database::PgPool;
 use futures::{future::join_all, lock::Mutex, stream, StreamExt};
 use hashbrown::HashMap;
 use http_body_util::BodyExt;
@@ -23,7 +24,7 @@ use songbird::{
     tracks::Track,
     Call,
 };
-use sqlx::PgPool;
+use soundboard::sound::SoundId;
 use tokio::net::TcpStream;
 use tracing::instrument;
 use url::Url;
@@ -34,7 +35,9 @@ use whatlang::{detect_lang, Lang};
 use crate::{
     audio::{cache::PredefinedUtterance, Audio, AudioRepository},
     character_converter::to_half_width,
-    commands, database, regex,
+    commands,
+    database,
+    regex,
     speaker::Speaker,
     utils::{get_manager, get_voicevox, normalize, RateLimiter},
 };
@@ -44,6 +47,7 @@ pub(crate) struct Handler<Repository> {
     pub(crate) speaker: Speaker,
     pub(crate) audio_repository: Repository,
     pub(crate) connections: Arc<Mutex<HashMap<GuildId, SerenityChannelId>>>,
+    pub(crate) time_keeper: Arc<Mutex<TimeKeeper<(GuildId, SoundId)>>>,
     pub(crate) kanatrans_host: String,
     pub(crate) kanatrans_port: u16,
     pub(crate) sounds: Arc<DashMap<OsString, Memory>>,
@@ -77,11 +81,11 @@ where
                         "dictionary" => commands::dictionary::run(&context, &self.audio_repository, &command).await,
                         "help" => commands::help::run(&context, &command).await,
                         "join" => {
-                            let mut connections = self.connections.lock().await;
-                            commands::join::run(&context, &self.audio_repository, &mut connections, &command).await
+                            commands::join::run(&context, &self.audio_repository, &mut *self.connections.lock().await, &command).await
                         },
                         "leave" => commands::leave::run(&context, &command).await,
                         "voice" => commands::voice::run(&context, &command, &self.database, &self.speaker).await,
+                        "soundsticker" => commands::soundsticker::run(&context, &command, &self.database).await,
                         _ => Ok(()),
                     }
                     .with_context(|| format!("failed to execute /{}", command.data.name));
@@ -93,6 +97,7 @@ where
                 Interaction::Autocomplete(command) => {
                     let result = match command.data.name.as_str() {
                         "voice" => commands::voice::autocomplete(&context, &command, &self.speaker).await,
+                        "soundsticker" => commands::soundsticker::autocomplete(&context, &command).await,
                         _ => Ok(()),
                     }
                     .with_context(|| format!("failed to autocomplete /{}", command.data.name));
@@ -178,34 +183,11 @@ where
                 return;
             }
 
-            let channel_message_at = match message.channel_id.to_channel(&context.http).await {
-                Ok(channel_at) => channel_at,
-                Err(error) => {
-                    tracing::error!("failed to get channel: {channel_id_bot_at:?}\nError: {error:?}");
-                    return;
-                },
-            };
-
-            let serenity::all::Channel::Guild(channel_message_at) = channel_message_at else {
-                return;
-            };
-
-            if channel_message_at.kind == ChannelType::Voice && self.sounds.len() > 0 {
-                if !self.rate_limiter.check_rate_limit(message.author.id).await {
-                    return;
-                }
-                let os_string: OsString = message.content.clone().into();
-                if let Some(sound) = self.sounds.get(&os_string) {
-                    call.play(Track::from(sound.value().clone()).volume(0.02));
-                    return;
-                }
-            }
-
             let ids: Vec<i64> = vec![message.author.id.into()];
             let speaker = match database::user::fetch_by_ids(&self.database, &ids).await {
                 Ok(users) => users
                     .first()
-                    .unwrap_or(&database::User::default())
+                    .unwrap_or(&database::user::User::default())
                     .speaker_id
                     .to_string(),
                 Err(error) => {
@@ -214,7 +196,7 @@ where
                 },
             };
 
-            let default = database::UserSpeaker::default();
+            let default = database::user::UserSpeaker::default();
             let speed =
                 match database::user::fetch_with_speaker_by_ids(&self.database, &[message.author.id.into()]).await {
                     Ok(speakers) => speakers
@@ -324,6 +306,7 @@ where
                             commands::join::register(),
                             commands::leave::register(),
                             commands::voice::register(),
+                            commands::soundsticker::register(),
                         ],
                     )
                     .await;
@@ -461,14 +444,67 @@ async fn replace_message<'a>(
                     Cow::Borrowed(borrowed) => Cow::Owned(borrowed.to_owned()),
                     Cow::Owned(owned) => Cow::Owned(owned),
                 },
-                Replacement::Katakana(_regex) => {
-                    let cloned = accumulator.into_owned();
-                    let text_opt = detect_lang(&cloned);
-                    Cow::Owned(
-                        text_opt
-                            .filter(|&opt| opt == Lang::Jpn)
-                            .map_or_else(|| cloned.to_hiragana(), |_| cloned.to_string()),
+                Replacement::Katakana(regex) => {
+                    let accumulator = &accumulator;
+
+                    let conversion_map = stream::iter(
+                        regex
+                            .find_iter(accumulator)
+                            .map(|word| word.as_str())
+                            .collect::<HashSet<_>>(),
                     )
+                    .map(|word| async move {
+                        if word.chars().all(char::is_uppercase)
+                            || dictionary_words.iter().any(|dictionary_word| dictionary_word == word)
+                        {
+                            return None;
+                        }
+
+                        match get_arpabet(kanatrans_host, kanatrans_port, word)
+                            .and_then(|arpabet| async move {
+                                get_katakana(
+                                    kanatrans_host,
+                                    kanatrans_port,
+                                    Some(&arpabet.word),
+                                    &arpabet.pronunciation,
+                                )
+                                .await
+                            })
+                            .await
+                        {
+                            Ok(katakana) => Some((word, katakana.pronunciation)),
+                            Err(err) => {
+                                tracing::error!("failed to get katakana\nError: {err:?}");
+                                None
+                            },
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .await;
+
+                    let conversion_map = future::join_all(conversion_map)
+                        .await
+                        .into_iter()
+                        .flatten()
+                        .collect::<HashMap<_, _>>();
+
+                    if conversion_map.is_empty() {
+                        return accumulator.clone();
+                    }
+
+                    let replaced = regex.replace_all(accumulator, |captures: &Captures| {
+                        let word = &captures[0];
+                        match conversion_map.get(word) {
+                            Some(pronunciation) => pronunciation.to_owned(),
+                            None => word.to_owned(),
+                        }
+                    });
+
+                    match replaced {
+                        Cow::Borrowed(borrowed) if borrowed.len() == accumulator.len() => accumulator.clone(),
+                        Cow::Borrowed(borrowed) => Cow::Owned(borrowed.to_owned()),
+                        Cow::Owned(owned) => Cow::Owned(owned),
+                    }
                 },
             }
         })
@@ -518,7 +554,7 @@ async fn handle_connect<Repository>(
 
     /*
     let inputs = stream::iter([user_is, connected].into_iter().flatten())
-        .map(|text| async move {
+        .map(async |text| {
             let audio = Audio {
                 text,
                 speaker: SYSTEM_SPEAKER.to_string(),

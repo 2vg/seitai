@@ -15,6 +15,15 @@ use sqlx::{
     postgres::{PgConnectOptions, PgPoolOptions},
     ConnectOptions, PgPool,
 };
+use cli::Application;
+use database::{ConnectOptions, PgConnectOptions, PgPool, PgPoolOptions};
+use futures::lock::Mutex;
+use hashbrown::HashMap;
+use time_keepr::TimeKeeper;
+use logging::initialize_logging;
+use serenity::{client::Client, model::gateway::GatewayIntents, prelude::TypeMapKey};
+use songbird::SerenityInit;
+use tokio::signal::unix::{signal, SignalKind};
 use tracing::log::LevelFilter;
 use utils::RateLimiter;
 use voicevox::Voicevox;
@@ -30,11 +39,12 @@ use crate::{
 
 mod audio;
 mod character_converter;
+mod cli;
 mod commands;
-mod database;
 mod event_handler;
 mod regex;
 mod speaker;
+mod time_keepr;
 mod utils;
 
 struct VoicevoxClient;
@@ -47,6 +57,13 @@ impl TypeMapKey for VoicevoxClient {
 async fn main() {
     initialize_logging();
 
+    if let Err(err) = Application::start().await {
+        tracing::error!("failed to start application\nError: {err:?}");
+        exit(1);
+    };
+}
+
+pub async fn start_bot() {
     let token = match env::var("DISCORD_TOKEN") {
         Ok(token) => token,
         Err(error) => {
@@ -146,6 +163,7 @@ async fn main() {
             speaker,
             audio_repository,
             connections: Arc::new(Mutex::new(HashMap::new())),
+            time_keeper: Arc::new(Mutex::new(TimeKeeper::new())),
             kanatrans_host,
             kanatrans_port,
             sounds: Arc::new(sounds),
@@ -177,7 +195,7 @@ async fn main() {
     wait_for_signal().await
 }
 
-async fn set_up_database() -> Result<PgPool> {
+pub async fn set_up_database() -> Result<PgPool> {
     let pg_options = PgConnectOptions::new()
         .log_statements(LevelFilter::Debug)
         .log_slow_statements(LevelFilter::Warn, Duration::from_millis(500));
@@ -187,7 +205,7 @@ async fn set_up_database() -> Result<PgPool> {
         .acquire_timeout(Duration::from_secs(5))
         .connect_with(pg_options)
         .await
-        .map_err(Error::msg)
+        .context("failed to set up database")
 }
 
 async fn set_up_voicevox() -> Result<Voicevox> {

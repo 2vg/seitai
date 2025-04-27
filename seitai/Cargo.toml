@@ -1,7 +1,7 @@
 [package]
 name = "seitai"
-version = "0.1.23"
-edition = "2021"
+version = "0.2.2"
+edition = "2024"
 
 [dependencies]
 dashmap = "6.1.0"
@@ -11,6 +11,13 @@ whatlang = "0.16.4"
 
 [dependencies.anyhow]
 workspace = true
+
+[dependencies.clap]
+version = "4.5.35"
+features = ["derive"]
+
+[dependencies.database]
+path = "../crates/database"
 
 [dependencies.futures]
 version = "0.3.31"
@@ -44,15 +51,6 @@ version = "5.0.0"
 [dependencies.regex-lite]
 version = "0.1.6"
 
-[dependencies.sea-query]
-version = "0.32.4"
-default-features = false
-features = ["backend-postgres", "derive", "thread-safe"]
-
-[dependencies.sea-query-binder]
-version = "0.7.0"
-features = ["sqlx-postgres"]
-
 [dependencies.serde]
 workspace = true
 
@@ -61,15 +59,15 @@ workspace = true
 
 [dependencies.serenity]
 workspace = true
-features = ["builder", "collector"]
+features = ["builder", "cache", "client", "collector", "gateway", "model", "native_tls_backend"]
 
 [dependencies.songbird]
 version = "0.5.0"
-features = ["builtin-queue"]
+default-features = false
+features = ["builtin-queue", "driver", "gateway", "native", "serenity", "tungstenite"]
 
-[dependencies.sqlx]
-version = "0.8.5"
-features = ["postgres", "runtime-tokio", "tls-native-tls"]
+[dependencies.soundboard]
+path = "../crates/soundboard"
 
 [dependencies.strum]
 features = ["derive"]

@@ -55,11 +55,8 @@ where
 
     let manager = get_manager(context).await?;
     let call = manager.get_or_insert(guild.id);
-    let join = {
-        let mut call = call.lock().await;
-        call.deafen(true).await?;
-        call.join(connect_to).await?
-    };
+
+    let join = { call.lock().await.join(connect_to).await? };
     join.await?;
     call.lock().await.add_global_event(
         CoreEvent::DriverDisconnect.into(),
