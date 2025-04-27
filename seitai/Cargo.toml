@@ -16,7 +16,7 @@ workspace = true
 version = "0.3.31"
 
 [dependencies.hashbrown]
-version = "0.14.5"
+version = "0.15.2"
 
 [dependencies.http-body-util]
 workspace = true
@@ -28,29 +28,29 @@ workspace = true
 workspace = true
 
 [dependencies.indexmap]
-version = "2.6.0"
+version = "2.9.0"
 features = ["serde"]
 
 [dependencies.lazy-regex]
-version = "3.3.0"
+version = "3.4.1"
 features = ["lite"]
 
 [dependencies.logging]
 workspace = true
 
 [dependencies.ordered-float]
-version = "4.5.0"
+version = "5.0.0"
 
 [dependencies.regex-lite]
 version = "0.1.6"
 
 [dependencies.sea-query]
-version = "0.31.1"
+version = "0.32.4"
 default-features = false
 features = ["backend-postgres", "derive", "thread-safe"]
 
 [dependencies.sea-query-binder]
-version = "0.6.0"
+version = "0.7.0"
 features = ["sqlx-postgres"]
 
 [dependencies.serde]
@@ -64,16 +64,16 @@ workspace = true
 features = ["builder", "collector"]
 
 [dependencies.songbird]
-version = "0.4.4"
+version = "0.5.0"
 features = ["builtin-queue"]
 
 [dependencies.sqlx]
-version = "0.7.4"
+version = "0.8.5"
 features = ["postgres", "runtime-tokio", "tls-native-tls"]
 
 [dependencies.strum]
 features = ["derive"]
-version = "0.26.3"
+version = "0.27.1"
 
 [dependencies.symphonia]
 version = "0.5.4"
@@ -95,4 +95,4 @@ workspace = true
 path = "../crates/voicevox"
 
 [dev-dependencies.mockall]
-version = "0.13.0"
+version = "0.13.1"

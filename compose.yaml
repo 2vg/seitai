@@ -1,11 +1,4 @@
 services:
-  reverse-proxy:
-    image: nginxproxy/nginx-proxy:1.4
-    ports:
-      - 80:80
-    volumes:
-      - /var/run/docker.sock:/tmp/docker.sock:ro
-
   voicevox:
     environment:
       VIRTUAL_HOST: ${VOICEVOX_HOST}
@@ -13,7 +6,6 @@ services:
     ports:
       - 50021:50021
     image: voicevox/voicevox_engine:cpu-ubuntu20.04-latest
-
   seitai:
     build:
       context: .
@@ -72,7 +64,6 @@ services:
     command: /bin/sh -c 'cargo run -p restarter'
     environment:
       DISCORD_TOKEN:
-
   kanatrans:
     image: ghcr.io/hexium310/kanatrans
     environment:
@@ -80,7 +71,6 @@ services:
       RUST_LOG: kanatrans=info
     ports:
       - 8080:8080
-
   database:
     image: postgres:16
     environment:
@@ -99,7 +89,6 @@ services:
       - type: volume
         source: database
         target: /var/lib/postgresql/data
-
 volumes:
   database:
     driver: local

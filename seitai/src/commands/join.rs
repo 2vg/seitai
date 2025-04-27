@@ -1,13 +1,12 @@
+use std::sync::Arc;
+
 use anyhow::{Context as _, Result};
 use hashbrown::HashMap;
 use ordered_float::NotNan;
 use serenity::{
-    all::{ChannelId, GuildId},
-    builder::{CreateCommand, CreateEmbed, CreateInteractionResponseMessage},
-    client::Context,
-    model::{application::CommandInteraction, Colour},
+    all::{ChannelId, GuildId}, async_trait, builder::{CreateCommand, CreateEmbed, CreateInteractionResponseMessage}, client::Context, model::{application::CommandInteraction, Colour}
 };
-use songbird::input::Input;
+use songbird::{input::Input, CoreEvent, Event, EventContext, EventHandler, Songbird};
 
 use crate::{
     audio::{cache::PredefinedUtterance, Audio, AudioRepository},
@@ -62,6 +61,12 @@ where
         call.join(connect_to).await?
     };
     join.await?;
+    call.lock().await.add_global_event(
+        CoreEvent::DriverDisconnect.into(),
+        DriverDisconnectNotifier {
+            songbird_manager: manager,
+        },
+    );
 
     connections.insert(guild.id, interaction.channel_id);
 
@@ -72,6 +77,7 @@ where
     );
     respond(context, interaction, &message).await?;
 
+    /*
     {
         let mut call = call.lock().await;
 
@@ -86,9 +92,33 @@ where
             .context("failed to get audio source")?;
         call.enqueue_input(input).await;
     }
+    */
     Ok(())
 }
 
 pub fn register() -> CreateCommand {
     CreateCommand::new("join").description("ボイスチャンネルに接続します。")
+}
+
+pub struct DriverDisconnectNotifier {
+    pub songbird_manager: Arc<Songbird>,
+}
+
+#[async_trait]
+impl EventHandler for DriverDisconnectNotifier {
+    async fn act(&self, ctx: &EventContext<'_>) -> Option<Event> {
+        let EventContext::DriverDisconnect(ctx) = ctx else {
+            return None;
+        };
+
+        if let Some(call) = self.songbird_manager.get(ctx.guild_id) {
+            let mut call = call.lock().await;
+            call.stop();
+            return None;
+        };
+
+        self.songbird_manager.remove(ctx.guild_id).await.unwrap();
+
+        None
+    }
 }

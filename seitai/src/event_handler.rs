@@ -36,7 +36,7 @@ use crate::{
     character_converter::to_half_width,
     commands, database, regex,
     speaker::Speaker,
-    utils::{get_manager, get_voicevox, normalize},
+    utils::{get_manager, get_voicevox, normalize, RateLimiter},
 };
 
 pub(crate) struct Handler<Repository> {
@@ -47,6 +47,7 @@ pub(crate) struct Handler<Repository> {
     pub(crate) kanatrans_host: String,
     pub(crate) kanatrans_port: u16,
     pub(crate) sounds: Arc<DashMap<OsString, Memory>>,
+    pub(crate) rate_limiter: RateLimiter,
 }
 
 enum Replacement {
@@ -177,7 +178,22 @@ where
                 return;
             }
 
-            if self.sounds.len() > 0 {
+            let channel_message_at = match message.channel_id.to_channel(&context.http).await {
+                Ok(channel_at) => channel_at,
+                Err(error) => {
+                    tracing::error!("failed to get channel: {channel_id_bot_at:?}\nError: {error:?}");
+                    return;
+                },
+            };
+
+            let serenity::all::Channel::Guild(channel_message_at) = channel_message_at else {
+                return;
+            };
+
+            if channel_message_at.kind == ChannelType::Voice && self.sounds.len() > 0 {
+                if !self.rate_limiter.check_rate_limit(message.author.id).await {
+                    return;
+                }
                 let os_string: OsString = message.content.clone().into();
                 if let Some(sound) = self.sounds.get(&os_string) {
                     call.play(Track::from(sound.value().clone()).volume(0.02));
@@ -232,16 +248,18 @@ where
                     })
                     .unwrap_or_default();
 
-                for text in replace_message(
+                let replaced = replace_message(
                     &context,
                     &message,
                     &self.kanatrans_host,
                     self.kanatrans_port,
                     &dictionary_words,
                 )
-                .await
-                .split('\n')
-                {
+                .await;
+
+                let truncated = truncate_message(&replaced, 150, "、以下省略");
+
+                for text in truncated.split('\n') {
                     let text = text.trim();
 
                     if text.is_empty() {
@@ -430,7 +448,7 @@ async fn replace_message<'a>(
         Replacement::General(&regex::WW, "$1ワラワラ$2"),
         Replacement::General(&regex::W, "$1ワラ$2"),
         Replacement::General(&regex::IDEOGRAPHIC_FULL_STOP, "。\n"),
-        Replacement::General(&regex::EMOJI, ":$1:"),
+        Replacement::General(&regex::EMOJI, ""), // 絵文字は読み上げない
         Replacement::Katakana(&regex::WORD),
     ];
 
@@ -455,6 +473,21 @@ async fn replace_message<'a>(
             }
         })
         .await
+}
+
+fn truncate_str(s: &str, max_chars: usize) -> &str {
+    match s.char_indices().nth(max_chars) {
+        None => s,
+        Some((idx, _)) => &s[..idx],
+    }
+}
+
+fn truncate_message<'a>(message: &'a str, limit: usize, suffix: &str) -> Cow<'a, str> {
+    if message.len() > limit {
+        Cow::Owned(format!("{}{}", truncate_str(message, limit), suffix))
+    } else {
+        Cow::Borrowed(message)
+    }
 }
 
 async fn handle_connect<Repository>(
@@ -483,6 +516,7 @@ async fn handle_connect<Repository>(
         .flatten();
     let connected = Some(PredefinedUtterance::Connected.as_ref().to_string());
 
+    /*
     let inputs = stream::iter([user_is, connected].into_iter().flatten())
         .map(|text| async move {
             let audio = Audio {
@@ -504,6 +538,7 @@ async fn handle_connect<Repository>(
     for input in join_all(inputs).await.into_iter().flatten() {
         call.enqueue_input(input).await;
     }
+    */
 }
 
 async fn _request<RequestBody, Response>(url: Url, request: Request<RequestBody>) -> Result<(StatusCode, Response)>

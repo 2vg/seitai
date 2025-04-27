@@ -16,6 +16,7 @@ use sqlx::{
     ConnectOptions, PgPool,
 };
 use tracing::log::LevelFilter;
+use utils::RateLimiter;
 use voicevox::Voicevox;
 
 use crate::{
@@ -148,6 +149,7 @@ async fn main() {
             kanatrans_host,
             kanatrans_port,
             sounds: Arc::new(sounds),
+            rate_limiter: RateLimiter::new(2, 3, 20, 60, 1.5, 1),
         })
         .register_songbird()
         .await

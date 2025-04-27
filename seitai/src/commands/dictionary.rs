@@ -56,9 +56,9 @@ where
         let mut subcommand_options = to_option_map(&option.value).unwrap_or_default();
         subcommand_options
             .entry_ref("surface")
-            .and_replace_entry_with(|_key, word| {
+            .and_modify(|word| {
                 let text = normalize(context, &guild_id, &users, &word);
-                Some(regex::EMOJI.replace_all(&text, ":$1:").into_owned())
+                *word = regex::EMOJI.replace_all(&text, ":$1:").into_owned();
             });
 
         match option.name.as_str() {
@@ -67,7 +67,9 @@ where
                 subcommand_options.entry_ref("priority").or_insert("10".to_string());
                 subcommand_options
                     .entry_ref("pronunciation")
-                    .and_replace_entry_with(|_key, pronunciation| Some(to_katakana(&*pronunciation).into_owned()));
+                    .and_modify(|pronunciation| {
+                        *pronunciation = to_katakana(&*pronunciation).into_owned();
+                    });
 
                 let word = subcommand_options
                     .get("surface")
