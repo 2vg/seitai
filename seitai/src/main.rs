@@ -5,25 +5,15 @@ use cli::Application;
 use dashmap::DashMap;
 use database::{ConnectOptions, PgConnectOptions, PgPool, PgPoolOptions};
 use futures::lock::Mutex;
-use futures::lock::Mutex;
-use hashbrown::HashMap;
 use hashbrown::HashMap;
 use jwalk::WalkDir;
 use logging::initialize_logging;
-use logging::initialize_logging;
 use serenity::{client::Client, model::gateway::GatewayIntents, prelude::TypeMapKey};
-use serenity::{client::Client, model::gateway::GatewayIntents, prelude::TypeMapKey};
-use songbird::SerenityInit;
 use songbird::{
     SerenityInit,
     input::{File, cached::Memory},
 };
-use sqlx::{
-    ConnectOptions, PgPool,
-    postgres::{PgConnectOptions, PgPoolOptions},
-};
 use time_keepr::TimeKeeper;
-use tokio::signal::unix::{SignalKind, signal};
 use tracing::log::LevelFilter;
 use utils::RateLimiter;
 use voicevox::Voicevox;

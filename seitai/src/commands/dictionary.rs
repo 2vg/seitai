@@ -69,7 +69,7 @@ where
             .entry("surface")
             .and_replace_entry_with(|_key, word| {
                 let text = normalize(context, &guild_id, &users, &word);
-                *word = regex::EMOJI.replace_all(&text, ":$1:").into_owned();
+                Some(regex::EMOJI.replace_all(&text, ":$1:").into_owned())
             });
 
         match option.name.as_str() {
